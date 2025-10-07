@@ -9,6 +9,7 @@ import (
 )
 
 var version = "0.1.0"
+var debugMode bool
 
 var rootCmd = &cobra.Command{
 	Use:   "godevwatch",
@@ -20,6 +21,9 @@ var rootCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("failed to load config: %w", err)
 		}
+
+		// Set debug mode in config
+		cfg.DebugMode = debugMode
 
 		// Start proxy server
 		return proxy.Start(cfg)
@@ -33,4 +37,8 @@ func Execute() error {
 func init() {
 	rootCmd.Version = version
 	rootCmd.Flags().BoolP("version", "v", false, "Print version information")
+
+	// Hidden debug flag for internal use only
+	rootCmd.Flags().BoolVar(&debugMode, "debug", false, "Enable debug mode (preserves build status files)")
+	rootCmd.Flags().MarkHidden("debug")
 }

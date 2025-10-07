@@ -12,7 +12,7 @@ import (
 // RunAll executes all build rules in order
 func RunAll(cfg *config.Config) error {
 	// Initialize tracker
-	tracker := NewTracker(cfg.BuildStatusDir)
+	tracker := NewTracker(cfg.BuildStatusDir, cfg.DebugMode)
 
 	// Start tracking
 	if err := tracker.Start(); err != nil {

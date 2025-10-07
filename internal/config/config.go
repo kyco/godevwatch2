@@ -19,6 +19,7 @@ type Config struct {
 	BuildStatusDir string      `yaml:"build_status_dir"`
 	BuildRules     []BuildRule `yaml:"build_rules"`
 	RunCmd         string      `yaml:"run_cmd"`
+	DebugMode      bool        // Set via --debug flag, not from YAML
 }
 
 const defaultConfigContent = `# godevwatch configuration file

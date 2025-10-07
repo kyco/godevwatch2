@@ -31,6 +31,9 @@ type Watcher struct {
 	debounceTimer map[string]*time.Timer // rule name -> timer
 	debounceMu    sync.Mutex
 	debounceDelay time.Duration
+
+	// Callbacks
+	buildSuccessCallback func()
 }
 
 // RunningBuild tracks a currently executing build process
@@ -357,6 +360,11 @@ func (w *Watcher) runBuildProcess(rb *RunningBuild) {
 	if err := rb.Tracker.Complete(); err != nil {
 		fmt.Printf("[watcher] Failed to mark build as complete: %v\n", err)
 	}
+
+	// Call success callback if set
+	if w.buildSuccessCallback != nil {
+		w.buildSuccessCallback()
+	}
 }
 
 // abortBuild terminates a running build and marks it as aborted
@@ -420,4 +428,9 @@ func (w *Watcher) shouldIgnoreFile(filename string) bool {
 		}
 	}
 	return false
+}
+
+// SetBuildSuccessCallback sets the callback function to be called when a build succeeds
+func (w *Watcher) SetBuildSuccessCallback(callback func()) {
+	w.buildSuccessCallback = callback
 }

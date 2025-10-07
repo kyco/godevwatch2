@@ -4,6 +4,9 @@ import (
 	_ "embed"
 	"fmt"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/kyco/godevwatch/internal/build"
 	"github.com/kyco/godevwatch/internal/config"
@@ -47,15 +50,30 @@ func Start(cfg *config.Config) error {
 	}
 	fmt.Println()
 
-	// Ensure application process is killed when proxy exits
-	defer func() {
-		if appCmd != nil && appCmd.Process != nil {
-			appCmd.Process.Kill()
-		}
-	}()
+	// Setup signal handling for graceful shutdown
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 
 	fmt.Println("[proxy] Press Ctrl+C to stop")
 
-	// Block forever (until Ctrl+C)
-	select {}
+	// Wait for termination signal
+	<-sigChan
+
+	// Cleanup
+	fmt.Println("\n[proxy] Shutting down...")
+
+	// Kill application process
+	if appCmd != nil && appCmd.Process != nil {
+		fmt.Println("[proxy] Stopping backend application...")
+		appCmd.Process.Kill()
+	}
+
+	// Remove build status directory
+	fmt.Printf("[proxy] Removing build status directory: %s\n", cfg.BuildStatusDir)
+	if err := os.RemoveAll(cfg.BuildStatusDir); err != nil {
+		fmt.Printf("[proxy] Warning: failed to remove build status directory: %v\n", err)
+	}
+
+	fmt.Println("[proxy] Shutdown complete")
+	return nil
 }

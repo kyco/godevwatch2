@@ -118,18 +118,44 @@
       // Start auto-reload connection
       connectReload();
 
-      // Also try periodic reload as fallback
-      setInterval(function() {
-        fetch('/__health')
-          .then(response => {
-            if (response.ok) {
-              window.location.reload();
+      // Poll build status updates
+      function updateBuildStatus() {
+        fetch('/__build-status')
+          .then(response => response.json())
+          .then(data => {
+            const statusDiv = document.getElementById('build-status');
+            if (data.current_build) {
+              const build = data.current_build;
+              let statusClass = 'info-alert';
+              let message = 'Waiting for backend to come online...';
+              
+              if (build.status === 'building') {
+                statusClass = 'build building';
+                message = `Building ${build.rule_name}... (${build.build_id})`;
+              } else if (build.status === 'failed') {
+                statusClass = 'build failed';
+                message = `Build failed: ${build.rule_name} (${build.build_id})`;
+              } else if (build.status === 'aborted') {
+                statusClass = 'build aborted';
+                message = `Build aborted: ${build.rule_name} (${build.build_id})`;
+              }
+              
+              statusDiv.innerHTML = `
+                <div class="${statusClass}">
+                  <span>${message}</span>
+                  ${build.status === 'building' ? '<div class="spinner"></div>' : ''}
+                </div>
+              `;
             }
           })
           .catch(() => {
-            // Backend still down, continue waiting
+            // Error fetching build status, keep default message
           });
-      }, 3000);
+      }
+      
+      // Update build status every 2 seconds
+      updateBuildStatus();
+      setInterval(updateBuildStatus, 2000);
     </script>
   </body>
 </html>

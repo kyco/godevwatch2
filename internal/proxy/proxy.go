@@ -2,12 +2,17 @@ package proxy
 
 import (
 	"context"
+	"encoding/json"
 	_ "embed"
 	"fmt"
+	"io/fs"
 	"net/http"
 	"os"
 	"os/exec"
 	"os/signal"
+	"path/filepath"
+	"strconv"
+	"strings"
 	"syscall"
 
 	"github.com/kyco/godevwatch/internal/build"
@@ -19,6 +24,80 @@ import (
 
 //go:embed templates/server-down.html
 var serverDownPage string
+
+// BuildStatusResponse represents the current build status
+type BuildStatusResponse struct {
+	CurrentBuild *BuildInfo `json:"current_build,omitempty"`
+}
+
+// BuildInfo represents information about a build
+type BuildInfo struct {
+	BuildID   string `json:"build_id"`
+	RuleName  string `json:"rule_name"`
+	Status    string `json:"status"`
+	Timestamp int64  `json:"timestamp"`
+}
+
+// getCurrentBuildStatus reads the current build status from the build directory
+func getCurrentBuildStatus(cfg *config.Config) string {
+	buildStatusDir := cfg.BuildStatusDir
+	
+	// Check if build status directory exists
+	if _, err := os.Stat(buildStatusDir); os.IsNotExist(err) {
+		response := BuildStatusResponse{}
+		data, _ := json.Marshal(response)
+		return string(data)
+	}
+	
+	// Find the most recent build status file
+	var currentBuild *BuildInfo
+	
+	filepath.WalkDir(buildStatusDir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return nil
+		}
+		
+		filename := d.Name()
+		
+		// Parse build status files (format: timestamp-buildid-status)
+		parts := strings.Split(filename, "-")
+		if len(parts) >= 3 {
+			// Skip current-build-id and last-success-build-id files
+			if strings.HasPrefix(filename, "current-build-id") || strings.HasPrefix(filename, "last-success-build-id") {
+				return nil
+			}
+			
+			timestampStr := parts[0]
+			buildID := parts[1]
+			status := strings.Join(parts[2:], "-")
+			
+			// Convert timestamp string to int64
+			timestamp, err := strconv.ParseInt(timestampStr, 10, 64)
+			if err != nil {
+				return nil // Skip invalid timestamp
+			}
+			
+			// Only keep the most recent build (or if this is the current one)
+			if currentBuild == nil || timestamp > currentBuild.Timestamp {
+				currentBuild = &BuildInfo{
+					BuildID:   buildID,
+					RuleName:  "go-build", // Default rule name
+					Status:    status,
+					Timestamp: timestamp,
+				}
+			}
+		}
+		
+		return nil
+	})
+	
+	response := BuildStatusResponse{
+		CurrentBuild: currentBuild,
+	}
+	
+	data, _ := json.Marshal(response)
+	return string(data)
+}
 
 // Start initializes and starts the proxy server
 func Start(cfg *config.Config) error {
@@ -47,6 +126,16 @@ func Start(cfg *config.Config) error {
 			w.WriteHeader(http.StatusServiceUnavailable)
 			fmt.Fprint(w, "Backend Down")
 		}
+	})
+
+	// Build status endpoint
+	http.HandleFunc("/__build-status", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		
+		// Get current build status from the build status directory
+		buildStatus := getCurrentBuildStatus(cfg)
+		fmt.Fprint(w, buildStatus)
 	})
 
 	// Server-Sent Events endpoint for auto-reload

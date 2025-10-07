@@ -11,7 +11,7 @@ import (
 
 // Start executes the run command and keeps it running in the background
 func Start(cfg *config.Config) (*exec.Cmd, error) {
-	fmt.Printf("[backend] Starting application: %s\n", cfg.RunCmd)
+	logger.Printf("[backend] Starting application: %s\n", cfg.RunCmd)
 
 	cmd := exec.Command("sh", "-c", cfg.RunCmd)
 	cmd.Stdout = logger.NewPrefixWriter("[backend] ", os.Stdout)
@@ -21,7 +21,7 @@ func Start(cfg *config.Config) (*exec.Cmd, error) {
 		return nil, fmt.Errorf("failed to start application: %w", err)
 	}
 
-	fmt.Printf("[backend] ✓ Application started (PID: %d)\n", cmd.Process.Pid)
+	logger.Printf("[backend] ✓ Application started (PID: %d)\n", cmd.Process.Pid)
 
 	return cmd, nil
 }

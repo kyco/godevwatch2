@@ -68,13 +68,13 @@ func (w *Watcher) Start(ctx context.Context) error {
 		return fmt.Errorf("failed to setup watchers: %w", err)
 	}
 
-	fmt.Printf("[watcher] Started watching files\n")
+	logger.Printf("[watcher] Started watching files\n")
 
 	// Main event loop
 	for {
 		select {
 		case <-ctx.Done():
-			fmt.Printf("[watcher] Stopping watcher\n")
+			logger.Printf("[watcher] Stopping watcher\n")
 			w.stopAllBuilds()
 			return w.fsWatcher.Close()
 
@@ -88,7 +88,7 @@ func (w *Watcher) Start(ctx context.Context) error {
 			if !ok {
 				return fmt.Errorf("watcher errors channel closed")
 			}
-			fmt.Printf("[watcher] Error: %v\n", err)
+			logger.Printf("[watcher] Error: %v\n", err)
 		}
 	}
 }
@@ -115,7 +115,7 @@ func (w *Watcher) setupWatchers() error {
 						return fmt.Errorf("failed to watch directory %s: %w", dir, err)
 					}
 					watchedDirs[dir] = true
-					fmt.Printf("[watcher] Watching directory: %s\n", dir)
+					logger.Printf("[watcher] Watching directory: %s\n", dir)
 				}
 			}
 		}
@@ -177,7 +177,7 @@ func (w *Watcher) handleFileEvent(event fsnotify.Event) {
 		return
 	}
 
-	fmt.Printf("[watcher] File changed: %s\n", event.Name)
+	logger.Printf("[watcher] File changed: %s\n", event.Name)
 
 	// Check which build rules should be triggered
 	for i := range w.config.BuildRules {
@@ -283,11 +283,11 @@ func (w *Watcher) executeBuild(rule *config.BuildRule) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
-	fmt.Printf("[watcher] Triggering build: %s\n", rule.Name)
+	logger.Printf("[watcher] Triggering build: %s\n", rule.Name)
 
 	// Check if there's already a running build for this rule
 	if runningBuild, exists := w.runningBuilds[rule.Name]; exists {
-		fmt.Printf("[watcher] Aborting previous build: %s\n", rule.Name)
+		logger.Printf("[watcher] Aborting previous build: %s\n", rule.Name)
 		w.abortBuild(runningBuild)
 	}
 
@@ -297,7 +297,7 @@ func (w *Watcher) executeBuild(rule *config.BuildRule) {
 
 	// Start tracking
 	if err := tracker.Start(); err != nil {
-		fmt.Printf("[watcher] Failed to start build tracking: %v\n", err)
+		logger.Printf("[watcher] Failed to start build tracking: %v\n", err)
 		cancel()
 		return
 	}
@@ -348,17 +348,17 @@ func (w *Watcher) runBuildProcess(rb *RunningBuild) {
 		}
 
 		// This was a genuine failure
-		fmt.Printf("[watcher] Build failed: %s - %v\n", rb.Rule.Name, err)
+		logger.Printf("[watcher] Build failed: %s - %v\n", rb.Rule.Name, err)
 		if err := rb.Tracker.Fail(); err != nil {
-			fmt.Printf("[watcher] Failed to mark build as failed: %v\n", err)
+			logger.Printf("[watcher] Failed to mark build as failed: %v\n", err)
 		}
 		return
 	}
 
 	// Build succeeded
-	fmt.Printf("[watcher] Build completed: %s\n", rb.Rule.Name)
+	logger.Printf("[watcher] Build completed: %s\n", rb.Rule.Name)
 	if err := rb.Tracker.Complete(); err != nil {
-		fmt.Printf("[watcher] Failed to mark build as complete: %v\n", err)
+		logger.Printf("[watcher] Failed to mark build as complete: %v\n", err)
 	}
 
 	// Call success callback if set
@@ -375,7 +375,7 @@ func (w *Watcher) abortBuild(rb *RunningBuild) {
 	// Kill the process if it's still running
 	if rb.Process != nil && rb.Process.Process != nil {
 		if err := rb.Process.Process.Kill(); err != nil {
-			fmt.Printf("[watcher] Failed to kill process: %v\n", err)
+			logger.Printf("[watcher] Failed to kill process: %v\n", err)
 		}
 	}
 

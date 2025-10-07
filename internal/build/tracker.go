@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/kyco/godevwatch/internal/logger"
 )
 
 // Tracker manages build status files
@@ -43,21 +45,21 @@ func (t *Tracker) Start() error {
 	// Generate new build ID and capture start timestamp
 	t.buildID = t.generateBuildID()
 	t.startTimestamp = time.Now().Unix()
-	fmt.Printf("[build] Build ID: %s (start timestamp: %d)\n", t.buildID, t.startTimestamp)
+	logger.Printf("[build] Build ID: %s (start timestamp: %d)\n", t.buildID, t.startTimestamp)
 
 	// Write current build ID
 	currentBuildIDPath := filepath.Join(t.statusDir, "current-build-id")
 	if err := os.WriteFile(currentBuildIDPath, []byte(t.buildID), 0644); err != nil {
 		return fmt.Errorf("failed to write current-build-id: %w", err)
 	}
-	fmt.Printf("[build] Created %s\n", filepath.Join(t.statusDir, "current-build-id"))
+	logger.Printf("[build] Created %s\n", filepath.Join(t.statusDir, "current-build-id"))
 
 	// Create building marker file with actual start timestamp
 	buildingMarkerPath := filepath.Join(t.statusDir, fmt.Sprintf("%d-%s-building", t.startTimestamp, t.buildID))
 	if err := os.WriteFile(buildingMarkerPath, []byte{}, 0644); err != nil {
 		return fmt.Errorf("failed to write building marker: %w", err)
 	}
-	fmt.Printf("[build] Created %s\n", buildingMarkerPath)
+	logger.Printf("[build] Created %s\n", buildingMarkerPath)
 
 	return nil
 }
@@ -70,24 +72,24 @@ func (t *Tracker) Complete() error {
 	if err := os.WriteFile(successMarkerPath, []byte{}, 0644); err != nil {
 		return fmt.Errorf("failed to write success marker: %w", err)
 	}
-	fmt.Printf("[build] Created %s (completion timestamp: %d)\n", successMarkerPath, completionTimestamp)
+	logger.Printf("[build] Created %s (completion timestamp: %d)\n", successMarkerPath, completionTimestamp)
 
 	// Write last-success-build-id
 	lastSuccessPath := filepath.Join(t.statusDir, "last-success-build-id")
 	if err := os.WriteFile(lastSuccessPath, []byte(t.buildID), 0644); err != nil {
 		return fmt.Errorf("failed to write last-success-build-id: %w", err)
 	}
-	fmt.Printf("[build] Created %s\n", lastSuccessPath)
+	logger.Printf("[build] Created %s\n", lastSuccessPath)
 
 	// Keep all build ID status files for audit purposes
-	fmt.Printf("[build] Preserving all build status files for audit\n")
+	logger.Printf("[build] Preserving all build status files for audit\n")
 
 	return nil
 }
 
 // Fail marks a build as failed
 func (t *Tracker) Fail() error {
-	fmt.Printf("[build] Marking build as failed\n")
+	logger.Printf("[build] Marking build as failed\n")
 
 	// Capture failure timestamp at the exact moment of failure
 	failureTimestamp := time.Now().Unix()
@@ -95,7 +97,7 @@ func (t *Tracker) Fail() error {
 	if err := os.WriteFile(failedMarkerPath, []byte{}, 0644); err != nil {
 		return fmt.Errorf("failed to write failed marker: %w", err)
 	}
-	fmt.Printf("[build] Created %s (failure timestamp: %d)\n", failedMarkerPath, failureTimestamp)
+	logger.Printf("[build] Created %s (failure timestamp: %d)\n", failedMarkerPath, failureTimestamp)
 
 	// Note: We keep the building marker file for audit purposes
 	fmt.Printf("[build] Preserving building marker for audit\n")
@@ -105,7 +107,7 @@ func (t *Tracker) Fail() error {
 
 // Abort marks a build as aborted
 func (t *Tracker) Abort() error {
-	fmt.Printf("[build] Marking build as aborted\n")
+	logger.Printf("[build] Marking build as aborted\n")
 
 	// Capture abort timestamp at the exact moment of abortion
 	abortTimestamp := time.Now().Unix()
@@ -113,7 +115,7 @@ func (t *Tracker) Abort() error {
 	if err := os.WriteFile(abortedMarkerPath, []byte{}, 0644); err != nil {
 		return fmt.Errorf("failed to write aborted marker: %w", err)
 	}
-	fmt.Printf("[build] Created %s (abort timestamp: %d)\n", abortedMarkerPath, abortTimestamp)
+	logger.Printf("[build] Created %s (abort timestamp: %d)\n", abortedMarkerPath, abortTimestamp)
 
 	// Note: We keep the building marker file for audit purposes
 	fmt.Printf("[build] Preserving building marker for audit\n")

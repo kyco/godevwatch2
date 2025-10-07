@@ -2,8 +2,8 @@ package proxy
 
 import (
 	"context"
-	"encoding/json"
 	_ "embed"
+	"encoding/json"
 	"fmt"
 	"io/fs"
 	"net/http"
@@ -18,6 +18,7 @@ import (
 	"github.com/kyco/godevwatch/internal/build"
 	"github.com/kyco/godevwatch/internal/config"
 	"github.com/kyco/godevwatch/internal/health"
+	"github.com/kyco/godevwatch/internal/logger"
 	"github.com/kyco/godevwatch/internal/process"
 	"github.com/kyco/godevwatch/internal/watcher"
 )
@@ -41,24 +42,24 @@ type BuildInfo struct {
 // getCurrentBuildStatus reads the current build status from the build directory
 func getCurrentBuildStatus(cfg *config.Config) string {
 	buildStatusDir := cfg.BuildStatusDir
-	
+
 	// Check if build status directory exists
 	if _, err := os.Stat(buildStatusDir); os.IsNotExist(err) {
 		response := BuildStatusResponse{}
 		data, _ := json.Marshal(response)
 		return string(data)
 	}
-	
+
 	// Find the most recent build status file
 	var currentBuild *BuildInfo
-	
+
 	filepath.WalkDir(buildStatusDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() {
 			return nil
 		}
-		
+
 		filename := d.Name()
-		
+
 		// Parse build status files (format: timestamp-buildid-status)
 		parts := strings.Split(filename, "-")
 		if len(parts) >= 3 {
@@ -66,17 +67,17 @@ func getCurrentBuildStatus(cfg *config.Config) string {
 			if strings.HasPrefix(filename, "current-build-id") || strings.HasPrefix(filename, "last-success-build-id") {
 				return nil
 			}
-			
+
 			timestampStr := parts[0]
 			buildID := parts[1]
 			status := strings.Join(parts[2:], "-")
-			
+
 			// Convert timestamp string to int64
 			timestamp, err := strconv.ParseInt(timestampStr, 10, 64)
 			if err != nil {
 				return nil // Skip invalid timestamp
 			}
-			
+
 			// Only keep the most recent build (or if this is the current one)
 			if currentBuild == nil || timestamp > currentBuild.Timestamp {
 				currentBuild = &BuildInfo{
@@ -87,20 +88,23 @@ func getCurrentBuildStatus(cfg *config.Config) string {
 				}
 			}
 		}
-		
+
 		return nil
 	})
-	
+
 	response := BuildStatusResponse{
 		CurrentBuild: currentBuild,
 	}
-	
+
 	data, _ := json.Marshal(response)
 	return string(data)
 }
 
 // Start initializes and starts the proxy server
 func Start(cfg *config.Config) error {
+	// Set global debug mode for logging
+	logger.SetDebugMode(cfg.DebugMode)
+
 	// Create health monitor
 	monitor := health.NewMonitor(cfg)
 
@@ -132,7 +136,7 @@ func Start(cfg *config.Config) error {
 	http.HandleFunc("/__build-status", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Access-Control-Allow-Origin", "*")
-		
+
 		// Get current build status from the build status directory
 		buildStatus := getCurrentBuildStatus(cfg)
 		fmt.Fprint(w, buildStatus)
@@ -171,9 +175,9 @@ func Start(cfg *config.Config) error {
 	server := &http.Server{Addr: addr}
 
 	go func() {
-		fmt.Printf("[proxy] \033[32mStarted proxy server on http://localhost%s\033[0m\n", addr)
+		logger.Printf("[proxy] \033[32mStarted proxy server on http://localhost%s\033[0m\n", addr)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			fmt.Printf("[proxy] Server error: %v\n", err)
+			logger.Printf("[proxy] Server error: %v\n", err)
 		}
 	}()
 
@@ -186,17 +190,17 @@ func Start(cfg *config.Config) error {
 	fmt.Println()
 	var appCmd *exec.Cmd
 	if err := build.RunAll(cfg); err != nil {
-		fmt.Printf("[proxy] \033[31mInitial build failed: %v\033[0m\n", err)
-		fmt.Printf("[proxy] \033[33mProxy will continue running. Fix the build errors and file watcher will rebuild automatically.\033[0m\n")
+		logger.Printf("[proxy] \033[31mInitial build failed: %v\033[0m\n", err)
+		logger.Printf("[proxy] \033[33mProxy will continue running. Fix the build errors and file watcher will rebuild automatically.\033[0m\n")
 	} else {
-		fmt.Printf("[proxy] \033[32mInitial build completed successfully\033[0m\n")
+		logger.Printf("[proxy] \033[32mInitial build completed successfully\033[0m\n")
 
 		// Only try to start the application if build succeeded
 		var err error
 		appCmd, err = process.Start(cfg)
 		if err != nil {
-			fmt.Printf("[proxy] \033[31mFailed to start backend: %v\033[0m\n", err)
-			fmt.Printf("[proxy] \033[33mProxy will continue running. Backend will start after successful build.\033[0m\n")
+			logger.Printf("[proxy] \033[31mFailed to start backend: %v\033[0m\n", err)
+			logger.Printf("[proxy] \033[33mProxy will continue running. Backend will start after successful build.\033[0m\n")
 		}
 	}
 	fmt.Println()
@@ -209,11 +213,11 @@ func Start(cfg *config.Config) error {
 
 	// Set up watcher to restart backend and trigger reload on successful builds
 	w.SetBuildSuccessCallback(func() {
-		fmt.Printf("[proxy] Build succeeded, starting/restarting backend...\n")
+		logger.Printf("[proxy] Build succeeded, starting/restarting backend...\n")
 
 		// Kill existing backend if running
 		if appCmd != nil && appCmd.Process != nil {
-			fmt.Printf("[proxy] Stopping existing backend...\n")
+			logger.Printf("[proxy] Stopping existing backend...\n")
 			appCmd.Process.Kill()
 			appCmd.Wait() // Wait for process to exit
 		}
@@ -221,10 +225,10 @@ func Start(cfg *config.Config) error {
 		// Start new backend
 		newCmd, err := process.Start(cfg)
 		if err != nil {
-			fmt.Printf("[proxy] \033[31mFailed to start backend: %v\033[0m\n", err)
+			logger.Printf("[proxy] \033[31mFailed to start backend: %v\033[0m\n", err)
 		} else {
 			appCmd = newCmd
-			fmt.Printf("[proxy] \033[32mBackend started successfully\033[0m\n")
+			logger.Printf("[proxy] \033[32mBackend started successfully\033[0m\n")
 			// Monitor will detect the new backend and trigger reload automatically
 		}
 	})
@@ -240,7 +244,7 @@ func Start(cfg *config.Config) error {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 
-	fmt.Println("[proxy] Press Ctrl+C to stop")
+	logger.Println("[proxy] Press Ctrl+C to stop")
 
 	// Wait for termination signal or watcher error
 	select {
@@ -248,7 +252,7 @@ func Start(cfg *config.Config) error {
 		// User requested shutdown
 	case err := <-watcherDone:
 		if err != nil {
-			fmt.Printf("[proxy] Watcher error: %v\n", err)
+			logger.Printf("[proxy] Watcher error: %v\n", err)
 		}
 	}
 
@@ -256,20 +260,20 @@ func Start(cfg *config.Config) error {
 	cancel()
 
 	// Cleanup
-	fmt.Println("\n[proxy] Shutting down...")
+	logger.Println("\n[proxy] Shutting down...")
 
 	// Kill application process
 	if appCmd != nil && appCmd.Process != nil {
-		fmt.Println("[proxy] Stopping backend application...")
+		logger.Println("[proxy] Stopping backend application...")
 		appCmd.Process.Kill()
 	}
 
 	// Remove build status directory
-	fmt.Printf("[proxy] Removing build status directory: %s\n", cfg.BuildStatusDir)
+	logger.Printf("[proxy] Removing build status directory: %s\n", cfg.BuildStatusDir)
 	if err := os.RemoveAll(cfg.BuildStatusDir); err != nil {
-		fmt.Printf("[proxy] Warning: failed to remove build status directory: %v\n", err)
+		logger.Printf("[proxy] Warning: failed to remove build status directory: %v\n", err)
 	}
 
-	fmt.Println("[proxy] Shutdown complete")
+	logger.Println("[proxy] Shutdown complete")
 	return nil
 }

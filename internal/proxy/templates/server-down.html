@@ -128,7 +128,7 @@
               const build = data.current_build;
               let statusClass = 'info-alert';
               let message = 'Waiting for backend to come online...';
-              
+
               if (build.status === 'building') {
                 statusClass = 'build building';
                 message = `Building ${build.rule_name}... (${build.build_id})`;
@@ -139,7 +139,7 @@
                 statusClass = 'build aborted';
                 message = `Build aborted: ${build.rule_name} (${build.build_id})`;
               }
-              
+
               statusDiv.innerHTML = `
                 <div class="${statusClass}">
                   <span>${message}</span>
@@ -152,7 +152,7 @@
             // Error fetching build status, keep default message
           });
       }
-      
+
       // Update build status every 2 seconds
       updateBuildStatus();
       setInterval(updateBuildStatus, 2000);

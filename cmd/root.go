@@ -38,7 +38,6 @@ func init() {
 	rootCmd.Version = version
 	rootCmd.Flags().BoolP("version", "v", false, "Print version information")
 
-	// Hidden debug flag for internal use only
-	rootCmd.Flags().BoolVar(&debugMode, "debug", false, "Enable debug mode (preserves build status files)")
-	rootCmd.Flags().MarkHidden("debug")
+	// Debug flag to show verbose logging
+	rootCmd.Flags().BoolVar(&debugMode, "debug", false, "Enable debug mode (show all logs including build and watcher details)")
 }

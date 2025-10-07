@@ -24,13 +24,13 @@ func RunAll(cfg *config.Config) error {
 	defer func() {
 		if buildErr != nil {
 			if err := tracker.Fail(); err != nil {
-				fmt.Printf("[build] Warning: failed to mark build as failed: %v\n", err)
+				logger.Printf("[build] Warning: failed to mark build as failed: %v\n", err)
 			}
 		}
 	}()
 
 	for _, rule := range cfg.BuildRules {
-		fmt.Printf("[build] Running build: %s\n", rule.Name)
+		logger.Printf("[build] Running build: %s\n", rule.Name)
 
 		cmd := exec.Command("sh", "-c", rule.Command)
 		cmd.Stdout = logger.NewPrefixWriter("[build] ", os.Stdout)
@@ -41,7 +41,7 @@ func RunAll(cfg *config.Config) error {
 			return buildErr
 		}
 
-		fmt.Printf("[build] ✓ Build completed: %s\n", rule.Name)
+		logger.Printf("[build] ✓ Build completed: %s\n", rule.Name)
 	}
 
 	// Mark build as complete

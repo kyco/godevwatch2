@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/kyco/godevwatch/internal/config"
+	"github.com/kyco/godevwatch/internal/logger"
 )
 
 // Status represents the current backend status
@@ -105,7 +106,7 @@ func (m *Monitor) updateStatus(newStatus Status) {
 
 	// Notify on status change
 	if oldStatus != newStatus {
-		fmt.Printf("[proxy] Backend status changed: %s -> %s\n",
+		logger.Printf("[proxy] Backend status changed: %s -> %s\n",
 			statusString(oldStatus), statusString(newStatus))
 
 		if m.onStatusChange != nil {
@@ -141,7 +142,7 @@ func (m *Monitor) triggerReload() {
 	m.reloadClientsMu.RLock()
 	defer m.reloadClientsMu.RUnlock()
 
-	fmt.Printf("[proxy] Triggering browser reload for %d client(s)\n", len(m.reloadClients))
+	logger.Printf("[proxy] Triggering browser reload for %d client(s)\n", len(m.reloadClients))
 
 	for client := range m.reloadClients {
 		select {

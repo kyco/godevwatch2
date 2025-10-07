@@ -102,3 +102,26 @@ func (t *Tracker) Fail() error {
 
 	return nil
 }
+
+// Abort marks a build as aborted
+func (t *Tracker) Abort() error {
+	fmt.Printf("[build] Marking build as aborted\n")
+
+	// Capture abort timestamp at the exact moment of abortion
+	abortTimestamp := time.Now().Unix()
+	abortedMarkerPath := filepath.Join(t.statusDir, fmt.Sprintf("%d-%s-aborted", abortTimestamp, t.buildID))
+	if err := os.WriteFile(abortedMarkerPath, []byte{}, 0644); err != nil {
+		return fmt.Errorf("failed to write aborted marker: %w", err)
+	}
+	fmt.Printf("[build] Created %s (abort timestamp: %d)\n", abortedMarkerPath, abortTimestamp)
+
+	// Note: We keep the building marker file for audit purposes
+	fmt.Printf("[build] Preserving building marker for audit\n")
+
+	return nil
+}
+
+// GetBuildID returns the current build ID
+func (t *Tracker) GetBuildID() string {
+	return t.buildID
+}

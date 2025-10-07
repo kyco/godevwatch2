@@ -10,6 +10,7 @@ import (
 type BuildRule struct {
 	Name    string   `yaml:"name"`
 	Watch   []string `yaml:"watch"`
+	Ignore  []string `yaml:"ignore,omitempty"`
 	Command string   `yaml:"command"`
 }
 
@@ -40,6 +41,10 @@ build_rules:
   - name: "go-build"
     watch:
       - "**/*.go"
+    ignore:
+      - "**/*_test.go"
+      - "vendor/**"
+      - "node_modules/**"
     command: "go build -o ./tmp/main ."
 
 # Command to run your application after successful build

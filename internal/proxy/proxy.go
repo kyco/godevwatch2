@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"context"
 	_ "embed"
 	"fmt"
 	"net/http"
@@ -11,6 +12,7 @@ import (
 	"github.com/kyco/godevwatch/internal/build"
 	"github.com/kyco/godevwatch/internal/config"
 	"github.com/kyco/godevwatch/internal/process"
+	"github.com/kyco/godevwatch/internal/watcher"
 )
 
 //go:embed templates/server-down.html
@@ -36,10 +38,10 @@ func Start(cfg *config.Config) error {
 		}
 	}()
 
-	// Run all build rules in order
+	// Run initial build for all rules
 	fmt.Println()
 	if err := build.RunAll(cfg); err != nil {
-		return fmt.Errorf("build failed: %w", err)
+		return fmt.Errorf("initial build failed: %w", err)
 	}
 	fmt.Println()
 
@@ -50,14 +52,37 @@ func Start(cfg *config.Config) error {
 	}
 	fmt.Println()
 
+	// Create and start file watcher
+	w, err := watcher.NewWatcher(cfg)
+	if err != nil {
+		return fmt.Errorf("failed to create watcher: %w", err)
+	}
+
+	// Start watcher in background
+	ctx, cancel := context.WithCancel(context.Background())
+	watcherDone := make(chan error, 1)
+	go func() {
+		watcherDone <- w.Start(ctx)
+	}()
+
 	// Setup signal handling for graceful shutdown
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 
 	fmt.Println("[proxy] Press Ctrl+C to stop")
 
-	// Wait for termination signal
-	<-sigChan
+	// Wait for termination signal or watcher error
+	select {
+	case <-sigChan:
+		// User requested shutdown
+	case err := <-watcherDone:
+		if err != nil {
+			fmt.Printf("[proxy] Watcher error: %v\n", err)
+		}
+	}
+
+	// Cancel watcher context
+	cancel()
 
 	// Cleanup
 	fmt.Println("\n[proxy] Shutting down...")
